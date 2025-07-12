@@ -353,43 +353,340 @@ elif experiment == "🛤️ 실험 2: 경사하강법 경로":
                     final_curvature = second_deriv(0)  # 최적점에서의 곡률
                     st.metric("최적점 곡률", f"{final_curvature:.3f}")
 
-# 실험 3: 헤시안 조건수
+
+# 실험 3 수정된 코드 (app.py에서 해당 부분만 교체)
+
 elif experiment == "🔢 실험 3: 헤시안 조건수":
     st.markdown('<div class="experiment-box">', unsafe_allow_html=True)
     st.markdown("""
     ### 🔢 실험 3: 헤시안 행렬 조건수와 수렴성
     
     **목표**: 다변수 함수에서 조건수 κ = λ_max/λ_min과 최적화 난이도 관계 검증
+    
+    **함수**: f(x,y) = ax² + by² (서로 다른 곡률을 가진 2차원 그릇)
     """)
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # 사이드바 설정
+    # 사이드바 설정 (더 간단하게)
     st.sidebar.markdown("---")
     st.sidebar.subheader("실험 3 설정")
-    a_values = st.sidebar.multiselect("a 값 선택", [1, 2, 5, 10, 20], default=[1, 5, 10])
-    b_value = st.sidebar.slider("b 값", 1, 3, 1)
-    start_x = st.sidebar.slider("시작점 x", -3.0, 3.0, 2.0)
-    start_y = st.sidebar.slider("시작점 y", -3.0, 3.0, 2.0)
+    
+    # 미리 정의된 조건수들 중 선택
+    condition_options = {
+        "쉬운 문제 (κ=1)": {"a": 1, "b": 1, "condition": 1},
+        "보통 문제 (κ=4)": {"a": 4, "b": 1, "condition": 4}, 
+        "어려운 문제 (κ=10)": {"a": 10, "b": 1, "condition": 10},
+        "매우 어려운 문제 (κ=20)": {"a": 20, "b": 1, "condition": 20}
+    }
+    
+    selected_problems = st.sidebar.multiselect(
+        "문제 난이도 선택",
+        list(condition_options.keys()),
+        default=["쉬운 문제 (κ=1)", "보통 문제 (κ=4)", "어려운 문제 (κ=10)"]
+    )
+    
+    start_x = st.sidebar.slider("시작점 x", 1.0, 3.0, 2.0)
+    start_y = st.sidebar.slider("시작점 y", 1.0, 3.0, 2.0)
+    max_lr = st.sidebar.slider("최대 학습률", 0.1, 0.5, 0.3)
     
     if st.sidebar.button("🚀 실험 3 실행", type="primary"):
-        if not a_values:
-            st.error("최소 하나의 a 값을 선택해주세요!")
+        if not selected_problems:
+            st.error("최소 하나의 문제를 선택해주세요!")
         else:
-            with st.spinner("헤시안 분석 중..."):
-                learning_rates = np.linspace(0.001, 0.3, 25)
-                all_results = []
-                
-                progress_bar = st.progress(0)
-                total_experiments = len(a_values) * len(learning_rates)
-                count = 0
-                
-                for a in a_values:
-                    condition_number = max(2*a, 2*b_value) / min(2*a, 2*b_value)
-                    theoretical_max_lr = 2 / max(2*a, 2*b_value)
+            with st.spinner("헤시안 조건수 분석 중..."):
+                try:
+                    # 선택된 문제들만 실험
+                    selected_configs = [condition_options[prob] for prob in selected_problems]
                     
-                    for lr in learning_rates:
-                        # 2D 경사하강법: f(x,y) = ax² + by²
-                        x, y = start_x, start_y
+                    # 학습률 범위 (더 적게)
+                    learning_rates = np.linspace(0.001, max_lr, 15)
+                    all_results = []
+                    
+                    progress_bar = st.progress(0)
+                    total_experiments = len(selected_configs) * len(learning_rates)
+                    count = 0
+                    
+                    for config in selected_configs:
+                        a, b_value = config["a"], config["b"]
+                        condition_number = config["condition"]
+                        theoretical_max_lr = 2 / max(2*a, 2*b_value)
+                        
+                        for lr in learning_rates:
+                            # 2D 경사하강법: f(x,y) = ax² + by²
+                            x, y = start_x, start_y
+                            iterations = 0
+                            max_iterations = 500  # 더 적게
+                            tolerance = 1e-5
+                            
+                            # 발산 체크를 위한 초기값 저장
+                            initial_distance = np.sqrt(x*x + y*y)
+                            
+                            for _ in range(max_iterations):
+                                grad_x = 2 * a * x
+                                grad_y = 2 * b_value * y
+                                
+                                gradient_norm = np.sqrt(grad_x**2 + grad_y**2)
+                                
+                                # 수렴 체크
+                                if gradient_norm < tolerance:
+                                    break
+                                
+                                # 파라미터 업데이트
+                                x = x - lr * grad_x
+                                y = y - lr * grad_y
+                                iterations += 1
+                                
+                                # 발산 체크
+                                current_distance = np.sqrt(x*x + y*y)
+                                if current_distance > 10 * initial_distance:
+                                    iterations = max_iterations  # 발산으로 처리
+                                    break
+                            
+                            converged = iterations < max_iterations
+                            final_distance = np.sqrt(x*x + y*y)
+                            
+                            all_results.append({
+                                '문제': f"κ={condition_number}",
+                                'a': a,
+                                '조건수': condition_number,
+                                '학습률': lr,
+                                '반복수': iterations,
+                                '수렴': converged,
+                                '이론적_최대_학습률': theoretical_max_lr,
+                                '최종_거리': final_distance
+                            })
+                            
+                            count += 1
+                            progress_bar.progress(count / total_experiments)
+                    
+                    if not all_results:
+                        st.error("❌ 실험 결과가 없습니다!")
+                        return
+                        
+                    df = pd.DataFrame(all_results)
+                    
+                    # 시각화 (간단하게 2x2)
+                    fig = make_subplots(
+                        rows=2, cols=2,
+                        subplot_titles=(
+                            '학습률 vs 수렴 반복수', 
+                            '조건수 vs 최적 학습률', 
+                            '수렴 성공률', 
+                            '조건수별 평균 성능'
+                        )
+                    )
+                    
+                    colors = ['blue', 'red', 'green', 'orange', 'purple']
+                    
+                    # 1. 학습률 vs 반복수 (조건수별)
+                    for i, config in enumerate(selected_configs):
+                        condition_num = config["condition"]
+                        df_condition = df[df['조건수'] == condition_num]
+                        
+                        if len(df_condition) > 0:
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=df_condition['학습률'], 
+                                    y=df_condition['반복수'],
+                                    mode='lines+markers', 
+                                    name=f'κ={condition_num}',
+                                    line=dict(color=colors[i % len(colors)]),
+                                    marker=dict(size=4)
+                                ),
+                                row=1, col=1
+                            )
+                            
+                            # 이론적 최대 학습률 표시
+                            theoretical_max = df_condition['이론적_최대_학습률'].iloc[0]
+                            if theoretical_max <= max_lr:
+                                fig.add_vline(
+                                    x=theoretical_max, 
+                                    line_dash="dash", 
+                                    line_color=colors[i % len(colors)], 
+                                    row=1, col=1
+                                )
+                    
+                    # 2. 조건수 vs 최적 학습률
+                    optimal_results = []
+                    for condition_num in df['조건수'].unique():
+                        df_condition = df[df['조건수'] == condition_num]
+                        converged_results = df_condition[df_condition['수렴'] == True]
+                        
+                        if len(converged_results) > 0:
+                            # 가장 적은 반복수를 가진 학습률 찾기
+                            optimal_idx = converged_results['반복수'].idxmin()
+                            optimal_lr = converged_results.loc[optimal_idx, '학습률']
+                            theoretical_max = converged_results['이론적_최대_학습률'].iloc[0]
+                            
+                            optimal_results.append({
+                                '조건수': condition_num,
+                                '최적_학습률': optimal_lr,
+                                '이론적_최대': theoretical_max
+                            })
+                    
+                    if optimal_results:
+                        optimal_df = pd.DataFrame(optimal_results)
+                        
+                        fig.add_trace(
+                            go.Scatter(
+                                x=optimal_df['조건수'], 
+                                y=optimal_df['최적_학습률'],
+                                mode='markers', 
+                                name='실험적 최적 학습률',
+                                marker=dict(size=12, color='blue', symbol='circle')
+                            ),
+                            row=1, col=2
+                        )
+                        
+                        fig.add_trace(
+                            go.Scatter(
+                                x=optimal_df['조건수'], 
+                                y=optimal_df['이론적_최대'],
+                                mode='markers', 
+                                name='이론적 최대 학습률',
+                                marker=dict(size=12, color='red', symbol='x')
+                            ),
+                            row=1, col=2
+                        )
+                    
+                    # 3. 수렴 성공률
+                    convergence_rate = df.groupby('조건수')['수렴'].mean().reset_index()
+                    convergence_rate.columns = ['조건수', '수렴률']
+                    
+                    fig.add_trace(
+                        go.Bar(
+                            x=convergence_rate['조건수'], 
+                            y=convergence_rate['수렴률'],
+                            name='수렴 성공률',
+                            marker_color='lightgreen'
+                        ),
+                        row=2, col=1
+                    )
+                    
+                    # 4. 조건수별 평균 성능
+                    avg_performance = df[df['수렴'] == True].groupby('조건수')['반복수'].mean().reset_index()
+                    if len(avg_performance) > 0:
+                        fig.add_trace(
+                            go.Bar(
+                                x=avg_performance['조건수'], 
+                                y=avg_performance['반복수'],
+                                name='평균 반복수',
+                                marker_color='lightblue'
+                            ),
+                            row=2, col=2
+                        )
+                    
+                    # 레이아웃 업데이트
+                    fig.update_layout(height=700, title_text="헤시안 조건수 실험 결과")
+                    
+                    # x, y축 라벨
+                    fig.update_xaxes(title_text="학습률", row=1, col=1)
+                    fig.update_yaxes(title_text="반복수", row=1, col=1)
+                    fig.update_xaxes(title_text="조건수", row=1, col=2)
+                    fig.update_yaxes(title_text="학습률", row=1, col=2)
+                    fig.update_xaxes(title_text="조건수", row=2, col=1)
+                    fig.update_yaxes(title_text="수렴률", row=2, col=1)
+                    fig.update_xaxes(title_text="조건수", row=2, col=2)
+                    fig.update_yaxes(title_text="평균 반복수", row=2, col=2)
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # 주요 결과 메트릭
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        total_convergence = df['수렴'].mean()
+                        st.metric("📊 전체 수렴률", f"{total_convergence:.1%}")
+                    
+                    with col2:
+                        if len(optimal_df) > 1:
+                            # 조건수와 최적 학습률의 상관관계
+                            correlation = np.corrcoef(
+                                1/optimal_df['조건수'], 
+                                optimal_df['최적_학습률']
+                            )[0,1]
+                            st.metric("🔗 상관계수 (1/κ vs α)", f"{correlation:.3f}")
+                        else:
+                            st.metric("🔗 상관계수", "계산 불가")
+                    
+                    with col3:
+                        if len(optimal_df) > 0:
+                            avg_error = np.mean(np.abs(
+                                optimal_df['최적_학습률'] - optimal_df['이론적_최대']
+                            ))
+                            st.metric("📏 평균 오차", f"{avg_error:.4f}")
+                        else:
+                            st.metric("📏 평균 오차", "계산 불가")
+                    
+                    # 핵심 발견 요약
+                    st.subheader("🔍 핵심 발견")
+                    
+                    if len(optimal_df) > 1:
+                        # 조건수 효과 분석
+                        min_condition = optimal_df['조건수'].min()
+                        max_condition = optimal_df['조건수'].max()
+                        min_lr = optimal_df[optimal_df['조건수'] == max_condition]['최적_학습률'].iloc[0]
+                        max_lr = optimal_df[optimal_df['조건수'] == min_condition]['최적_학습률'].iloc[0]
+                        
+                        improvement_factor = max_lr / min_lr if min_lr > 0 else float('inf')
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.info(f"""
+                            **📈 조건수 효과**
+                            - 조건수 {min_condition} → 최적 학습률: {max_lr:.3f}
+                            - 조건수 {max_condition} → 최적 학습률: {min_lr:.3f}
+                            - **학습률 차이**: {improvement_factor:.1f}배
+                            """)
+                        
+                        with col2:
+                            if correlation < -0.7:
+                                st.success("✅ **이론 검증 성공!** 조건수가 클수록 최적 학습률이 작아짐")
+                            elif correlation < -0.5:
+                                st.info("✔️ **이론 부분 검증.** 조건수와 학습률의 역관계 확인")
+                            else:
+                                st.warning("⚠️ **추가 실험 필요.** 더 많은 조건수로 실험해보세요")
+                    
+                    # 상세 데이터
+                    with st.expander("📊 상세 실험 데이터"):
+                        # 요약 테이블
+                        summary_data = []
+                        for condition_num in sorted(df['조건수'].unique()):
+                            df_cond = df[df['조건수'] == condition_num]
+                            converged_df = df_cond[df_cond['수렴'] == True]
+                            
+                            if len(converged_df) > 0:
+                                best_lr = converged_df.loc[converged_df['반복수'].idxmin(), '학습률']
+                                min_iterations = converged_df['반복수'].min()
+                                convergence_rate = len(converged_df) / len(df_cond)
+                                theoretical_max = df_cond['이론적_최대_학습률'].iloc[0]
+                            else:
+                                best_lr = "수렴 실패"
+                                min_iterations = "∞"
+                                convergence_rate = 0
+                                theoretical_max = df_cond['이론적_최대_학습률'].iloc[0]
+                            
+                            summary_data.append({
+                                '조건수': condition_num,
+                                '이론적_최대_학습률': f"{theoretical_max:.4f}",
+                                '실험적_최적_학습률': best_lr if isinstance(best_lr, str) else f"{best_lr:.4f}",
+                                '최소_반복수': min_iterations if isinstance(min_iterations, str) else int(min_iterations),
+                                '수렴률': f"{convergence_rate:.1%}"
+                            })
+                        
+                        summary_df = pd.DataFrame(summary_data)
+                        st.dataframe(summary_df, use_container_width=True)
+                        
+                        # 전체 원시 데이터
+                        with st.expander("🔬 전체 원시 데이터"):
+                            st.dataframe(df.round(4))
+                    
+                except Exception as e:
+                    st.error(f"❌ 실험 중 오류 발생: {str(e)}")
+                    st.info("💡 해결 방법: 더 적은 문제를 선택하거나 최대 학습률을 줄여보세요.")
+
+
 # 실험 4 수정된 코드 (app.py에서 해당 부분만 교체)
 
 elif experiment == "🧠 실험 4: 신경망 손실함수":
