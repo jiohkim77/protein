@@ -784,7 +784,7 @@ elif experiment == "🧠 실험 4: 신경망 손실함수":
                 
                 if not valid_results:
                     st.error("❌ 유효한 결과가 없습니다. 설정을 조정해주세요!")
-                    return
+                    st.stop()
                 
                 # 간단한 시각화
                 fig = make_subplots(
