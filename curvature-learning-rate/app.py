@@ -777,7 +777,7 @@ elif experiment == "🧠 실험 4: 신경망 손실함수":
                 # 결과가 있는지 확인
                 if not results or all(len(r['손실_기록']) == 0 for r in results):
                     st.error("❌ 실험이 제대로 실행되지 않았습니다. 설정값을 더 작게 해보세요!")
-                    return
+                    st.stop()    
                 
                 # 결과 분석
                 valid_results = [r for r in results if len(r['손실_기록']) > 0]
