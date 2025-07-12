@@ -228,7 +228,8 @@ if experiment == "🎯 실험 1: 최적 학습률 검증":
             with st.expander("📊 상세 실험 데이터"):
                 st.dataframe(df.round(4))
 
-# 실험 2: 경사하강법 경로
+# 실험 2 수정된 코드 (app.py에서 해당 부분만 교체)
+
 elif experiment == "🛤️ 실험 2: 경사하강법 경로":
     st.markdown('<div class="experiment-box">', unsafe_allow_html=True)
     st.markdown("""
@@ -241,119 +242,196 @@ elif experiment == "🛤️ 실험 2: 경사하강법 경로":
     # 사이드바 설정
     st.sidebar.markdown("---")
     st.sidebar.subheader("실험 2 설정")
-    start_point = st.sidebar.slider("시작점", -3.0, 3.0, 2.5)
+    start_point = st.sidebar.slider("시작점", -2.0, 2.0, 1.5)  # 범위 줄임
     selected_lrs = st.sidebar.multiselect(
         "학습률 선택", 
-        [0.05, 0.1, 0.2, 0.3, 0.5, 0.8], 
-        default=[0.1, 0.3, 0.5]
+        [0.05, 0.1, 0.15, 0.2, 0.3], 
+        default=[0.1, 0.15, 0.2]
     )
-    max_iter = st.sidebar.slider("최대 반복수", 20, 100, 50)
+    max_iter = st.sidebar.slider("최대 반복수", 10, 50, 30)  # 줄임
     
     if st.sidebar.button("🚀 실험 2 실행", type="primary"):
         if not selected_lrs:
             st.error("최소 하나의 학습률을 선택해주세요!")
         else:
             with st.spinner("경로 추적 중..."):
-                # f(x) = x² + 0.1x⁴ 함수 사용
-                func = lambda x: x**2 + 0.1*x**4
-                grad_func = lambda x: 2*x + 0.4*x**3
-                second_deriv = lambda x: 2 + 1.2*x**2
-                
-                # 함수 시각화용 데이터
-                x_range = np.linspace(-3, 3, 1000)
-                y_range = [func(x) for x in x_range]
-                
-                # 서브플롯 생성
-                fig = make_subplots(
-                    rows=2, cols=2,
-                    subplot_titles=('함수와 최적화 경로', '파라미터 변화', '곡률 변화', '이론적 최적 학습률'),
-                    vertical_spacing=0.12,
-                    horizontal_spacing=0.1
-                )
-                
-                # 함수 그래프
-                fig.add_trace(
-                    go.Scatter(x=x_range, y=y_range, name='f(x) = x² + 0.1x⁴', 
-                              line=dict(color='black', width=2)),
-                    row=1, col=1
-                )
-                
-                colors = px.colors.qualitative.Set1
-                
-                for i, lr in enumerate(selected_lrs):
-                    # 경사하강법 실행
-                    x = start_point
-                    path = [x]
+                try:
+                    # f(x) = x² + 0.1x⁴ 함수 사용 (안전한 버전)
+                    def safe_func(x):
+                        # 오버플로우 방지: x 범위 제한
+                        x = np.clip(x, -10, 10)
+                        return x**2 + 0.1*x**4
                     
-                    for _ in range(max_iter):
-                        gradient = grad_func(x)
-                        if abs(gradient) < 1e-6:
-                            break
-                        x = x - lr * gradient
-                        path.append(x)
+                    def safe_grad_func(x):
+                        # 오버플로우 방지: x 범위 제한
+                        x = np.clip(x, -10, 10)
+                        return 2*x + 0.4*x**3
                     
-                    path = np.array(path)
-                    path_y = [func(x) for x in path]
-                    curvatures = [second_deriv(x) for x in path]
-                    theoretical_lrs = [1/second_deriv(x) for x in path]
+                    def safe_second_deriv(x):
+                        # 오버플로우 방지: x 범위 제한
+                        x = np.clip(x, -10, 10)
+                        return 2 + 1.2*x**2
                     
-                    color = colors[i % len(colors)]
+                    # 함수 시각화용 데이터
+                    x_range = np.linspace(-3, 3, 1000)
+                    y_range = [safe_func(x) for x in x_range]
                     
-                    # 1. 함수와 경로
+                    # 서브플롯 생성
+                    fig = make_subplots(
+                        rows=2, cols=2,
+                        subplot_titles=('함수와 최적화 경로', '파라미터 변화', '곡률 변화', '이론적 최적 학습률'),
+                        vertical_spacing=0.15,
+                        horizontal_spacing=0.1
+                    )
+                    
+                    # 함수 그래프
                     fig.add_trace(
-                        go.Scatter(x=path, y=path_y, mode='lines+markers',
-                                  name=f'LR={lr}', line=dict(color=color, width=3),
-                                  marker=dict(size=4)),
+                        go.Scatter(x=x_range, y=y_range, name='f(x) = x² + 0.1x⁴', 
+                                  line=dict(color='black', width=2)),
                         row=1, col=1
                     )
                     
-                    # 2. 파라미터 변화
-                    fig.add_trace(
-                        go.Scatter(x=list(range(len(path))), y=path, mode='lines',
-                                  name=f'위치 (LR={lr})', line=dict(color=color),
-                                  showlegend=False),
-                        row=1, col=2
-                    )
+                    colors = px.colors.qualitative.Set1
                     
-                    # 3. 곡률 변화
-                    fig.add_trace(
-                        go.Scatter(x=list(range(len(curvatures))), y=curvatures, mode='lines',
-                                  name=f'곡률 (LR={lr})', line=dict(color=color),
-                                  showlegend=False),
-                        row=2, col=1
-                    )
+                    for i, lr in enumerate(selected_lrs):
+                        # 경사하강법 실행 (안전한 버전)
+                        x = start_point
+                        path = [x]
+                        
+                        for iteration in range(max_iter):
+                            # 현재 기울기 계산
+                            gradient = safe_grad_func(x)
+                            
+                            # 수렴 체크
+                            if abs(gradient) < 1e-6:
+                                break
+                            
+                            # 새로운 x 계산
+                            x_new = x - lr * gradient
+                            
+                            # 발산 방지: x가 너무 커지면 중단
+                            if abs(x_new) > 5:
+                                st.warning(f"⚠️ 학습률 {lr}에서 발산이 감지되어 조기 중단했습니다.")
+                                break
+                            
+                            # 함수값 급증 체크
+                            if safe_func(x_new) > 100:
+                                st.warning(f"⚠️ 학습률 {lr}에서 함수값이 너무 커져서 중단했습니다.")
+                                break
+                            
+                            x = x_new
+                            path.append(x)
+                        
+                        # 경로가 너무 짧으면 건너뛰기
+                        if len(path) < 2:
+                            st.warning(f"⚠️ 학습률 {lr}에서 유효한 경로를 생성하지 못했습니다.")
+                            continue
+                        
+                        path = np.array(path)
+                        path_y = [safe_func(x) for x in path]
+                        curvatures = [safe_second_deriv(x) for x in path]
+                        theoretical_lrs = [1/max(safe_second_deriv(x), 0.1) for x in path]  # 분모가 0이 되지 않게
+                        
+                        color = colors[i % len(colors)]
+                        
+                        # 1. 함수와 경로
+                        fig.add_trace(
+                            go.Scatter(x=path, y=path_y, mode='lines+markers',
+                                      name=f'LR={lr}', line=dict(color=color, width=3),
+                                      marker=dict(size=4)),
+                            row=1, col=1
+                        )
+                        
+                        # 2. 파라미터 변화
+                        fig.add_trace(
+                            go.Scatter(x=list(range(len(path))), y=path, mode='lines',
+                                      name=f'위치 (LR={lr})', line=dict(color=color),
+                                      showlegend=False),
+                            row=1, col=2
+                        )
+                        
+                        # 3. 곡률 변화
+                        fig.add_trace(
+                            go.Scatter(x=list(range(len(curvatures))), y=curvatures, mode='lines',
+                                      name=f'곡률 (LR={lr})', line=dict(color=color),
+                                      showlegend=False),
+                            row=2, col=1
+                        )
+                        
+                        # 4. 이론적 최적 학습률
+                        fig.add_trace(
+                            go.Scatter(x=list(range(len(theoretical_lrs))), y=theoretical_lrs, mode='lines',
+                                      name=f'최적 LR (LR={lr})', line=dict(color=color),
+                                      showlegend=False),
+                            row=2, col=2
+                        )
                     
-                    # 4. 이론적 최적 학습률
-                    fig.add_trace(
-                        go.Scatter(x=list(range(len(theoretical_lrs))), y=theoretical_lrs, mode='lines',
-                                  name=f'최적 LR (LR={lr})', line=dict(color=color),
-                                  showlegend=False),
-                        row=2, col=2
-                    )
-                
-                fig.update_layout(height=700, title_text="경사하강법 경로 분석")
-                fig.update_xaxes(title_text="x", row=1, col=1)
-                fig.update_yaxes(title_text="f(x)", row=1, col=1)
-                fig.update_xaxes(title_text="반복", row=1, col=2)
-                fig.update_yaxes(title_text="파라미터 위치", row=1, col=2)
-                fig.update_xaxes(title_text="반복", row=2, col=1)
-                fig.update_yaxes(title_text="곡률", row=2, col=1)
-                fig.update_xaxes(title_text="반복", row=2, col=2)
-                fig.update_yaxes(title_text="최적 학습률", row=2, col=2)
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # 분석 결과
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("시작점 곡률", f"{second_deriv(start_point):.3f}")
-                with col2:
-                    st.metric("시작점 이론적 최적 LR", f"{1/second_deriv(start_point):.3f}")
-                with col3:
-                    final_curvature = second_deriv(0)  # 최적점에서의 곡률
-                    st.metric("최적점 곡률", f"{final_curvature:.3f}")
-
-
+                    fig.update_layout(height=700, title_text="경사하강법 경로 분석")
+                    fig.update_xaxes(title_text="x", row=1, col=1)
+                    fig.update_yaxes(title_text="f(x)", row=1, col=1)
+                    fig.update_xaxes(title_text="반복", row=1, col=2)
+                    fig.update_yaxes(title_text="파라미터 위치", row=1, col=2)
+                    fig.update_xaxes(title_text="반복", row=2, col=1)
+                    fig.update_yaxes(title_text="곡률", row=2, col=1)
+                    fig.update_xaxes(title_text="반복", row=2, col=2)
+                    fig.update_yaxes(title_text="최적 학습률", row=2, col=2)
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # 분석 결과
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        start_curvature = safe_second_deriv(start_point)
+                        st.metric("시작점 곡률", f"{start_curvature:.3f}")
+                    
+                    with col2:
+                        start_optimal_lr = 1/start_curvature if start_curvature > 0 else 0
+                        st.metric("시작점 이론적 최적 LR", f"{start_optimal_lr:.3f}")
+                    
+                    with col3:
+                        final_curvature = safe_second_deriv(0)  # 최적점에서의 곡률
+                        st.metric("최적점 곡률", f"{final_curvature:.3f}")
+                    
+                    # 실험 성과 요약
+                    st.subheader("🔍 실험 결과 분석")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.info(f"""
+                        **📈 곡률 변화 효과**
+                        - 시작점 곡률: {start_curvature:.2f}
+                        - 최적점 곡률: {final_curvature:.2f}
+                        - 변화율: {(final_curvature/start_curvature):.1%}
+                        """)
+                    
+                    with col2:
+                        if start_curvature > 0:
+                            lr_change = (1/final_curvature) / (1/start_curvature)
+                            st.success(f"""
+                            **🎯 적응적 학습률 필요성**
+                            - 이론적으로 학습률을 {lr_change:.1f}배 증가 가능
+                            - 곡률 감소 → 더 빠른 학습 가능
+                            """)
+                    
+                    # 주의사항
+                    st.warning("""
+                    **⚠️ 실험 주의사항**
+                    - 시작점을 ±2.0 범위 내에서 선택하세요
+                    - 너무 큰 학습률은 발산할 수 있습니다
+                    - 오버플로우 방지를 위해 안전 장치가 적용되었습니다
+                    """)
+                    
+                except Exception as e:
+                    st.error(f"❌ 실험 중 오류 발생: {str(e)}")
+                    st.info("""
+                    💡 **해결 방법**:
+                    1. 시작점을 -2.0 ~ 2.0 사이로 설정
+                    2. 학습률을 0.3 이하로 선택  
+                    3. 페이지를 새로고침 후 재시도
+                    """)
+                    
 # 실험 3 수정된 코드 (app.py에서 해당 부분만 교체)
 
 elif experiment == "🔢 실험 3: 헤시안 조건수":
