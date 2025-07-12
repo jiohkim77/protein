@@ -459,10 +459,9 @@ elif experiment == "🔢 실험 3: 헤시안 조건수":
                             count += 1
                             progress_bar.progress(count / total_experiments)
                     
-                    if not all_results:
-                        st.error("❌ 실험 결과가 없습니다!")
-                        return
-                        
+                    if not selected_problems:
+                        st.error("최소 하나의 문제를 선택해주세요!")
+                        st.stop()  # ← return 대신 st.stop() 사용
                     df = pd.DataFrame(all_results)
                     
                     # 시각화 (간단하게 2x2)
